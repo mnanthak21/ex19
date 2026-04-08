@@ -21,11 +21,11 @@ generate if (FAST_SIM) begin
 endgenerate
 
 logic batt_low_run;
-logic curr_note_dur;
-logic curr_freq;
+logic [24:0] curr_note_dur;
+logic [12:0] curr_freq;
 
 // note frequency counter
-logic freq_cnt;
+logic [12:0] freq_cnt;
 logic freq_done;
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
@@ -44,7 +44,7 @@ always_ff @(posedge clk, negedge rst_n) begin
 end
 
 // note duration counter
-logic note_cnt;
+logic [24:0] note_cnt;
 logic note_done;
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
@@ -58,8 +58,18 @@ end
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
 		note_done <= 0;
-	else if (note_cnt == curr_note_dur) note_done <= 1;
-	else note_done <= 0;
+	else if (note_cnt == curr_note_dur) begin
+		note_done <= 1;
+		note_cnt <= 0;
+	end else note_done <= 0;
+end
+
+// batt_low_run FF
+always_ff @(posedge clk, negedge rst_n) begin
+	if (!rst_n)
+		batt_low_run <= 0;
+	else if (state == IDLE)
+		batt_low_run <= batt_low;
 end
 
 // FSM update
@@ -73,34 +83,30 @@ end
 // FSM comb logic
 always_comb begin
 	curr_freq = 0;
-	batt_low_run = 0;
 	curr_note_dur = 0;
-	note_done = 0;
 	nxt_state = state;
 	
 	case (state)
 		IDLE: begin
 			if (batt_low) begin
-				batt_low_run=1;
 				nxt_state = N1;
 			end else if (fanfare) begin
-				batt_low_run=0;
 				nxt_state = N1;
 			end
 		end
 		N1: begin
 			curr_note_dur = note_dur;
-			curr_freq <= 1568;
+			curr_freq = 1568;
 			if (note_done) nxt_state = N2;
 		end
 		N2: begin
 			curr_note_dur = note_dur;
-			curr_freq <= 2093;
+			curr_freq = 2093;
 			if (note_done) nxt_state = N3;
 		end
 		N3: begin
 			curr_note_dur = note_dur;
-			curr_freq <= 2637;
+			curr_freq = 2637;
 			if (note_done) begin
 				if (batt_low_run) nxt_state = N1;
 				else nxt_state = N4;
@@ -108,17 +114,17 @@ always_comb begin
 		end
 		N4: begin
 			curr_note_dur = note_dur + note_dur / 2;
-			curr_freq <= 3136;
+			curr_freq = 3136;
 			if (note_done) nxt_state = N5;
 		end
 		N5: begin
 			curr_note_dur = note_dur / 2;
-			curr_freq <= 2637;
+			curr_freq = 2637;
 			if (note_done) nxt_state = N6;
 		end
 		N6: begin
 			curr_note_dur = note_dur * 2;
-			curr_freq <= 3136;
+			curr_freq = 3136;
 			if (note_done) nxt_state = IDLE;
 		end
 		default: nxt_state = IDLE;
