@@ -1,12 +1,12 @@
 module piezo_drv(clk, rst_n, batt_low, fanfare, piezo, piezo_n);
 
 input logic clk, rst_n, batt_low, fanfare;
-output logic piezo, piezo_logic;
+output logic piezo, piezo_n;
 
 typedef enum logic [2:0] {IDLE, N1, N2, N3, N4, N5, N6} state_t;
 state_t state, nxt_state;
 
-localparam clk_speed = 50'000'000;
+localparam clk_speed = 50000000;
 parameter FAST_SIM = 0;
 
 localparam note_dur = 8388608;
@@ -67,12 +67,12 @@ always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
 		state <= IDLE;
 	else
-		state <= nxt_stste;
+		state <= nxt_state;
 end
 
 // FSM comb logic
 always_comb begin
-	curr_note_freq = 0;
+	curr_freq = 0;
 	batt_low_run = 0;
 	curr_note_dur = 0;
 	note_done = 0;
@@ -121,7 +121,7 @@ always_comb begin
 			curr_freq <= 3136;
 			if (note_done) nxt_state = IDLE;
 		end
-		default: note_nxt_state = IDLE;
+		default: nxt_state = IDLE;
 	endcase
 end
 
