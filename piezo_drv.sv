@@ -11,6 +11,8 @@ parameter FAST_SIM = 0;
 
 localparam note_dur = 8388608;
 logic [4:0] note_dur_inc;
+
+
 generate if (FAST_SIM) begin
 		assign note_dur_inc = 16;
 	end else begin
@@ -20,7 +22,7 @@ endgenerate
 
 logic batt_low_run;
 logic curr_note_dur;
-logic curr_note_freq;
+logic curr_freq;
 
 // note frequency counter
 logic freq_cnt;
@@ -28,7 +30,7 @@ logic freq_done;
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
 		freq_cnt <= 0;
-	else if ((state == IDLE) || freq_done)
+	else if (freq_done)
 		freq_cnt <= 0;
 	else
 		freq_cnt <= freq_cnt + 1;
@@ -70,6 +72,7 @@ end
 
 // FSM comb logic
 always_comb begin
+	curr_note_freq = 0;
 	batt_low_run = 0;
 	curr_note_dur = 0;
 	note_done = 0;
@@ -83,6 +86,7 @@ always_comb begin
 			end else if (fanfare) begin
 				batt_low_run=0;
 				nxt_state = N1;
+			end
 		end
 		N1: begin
 			curr_note_dur = note_dur;
