@@ -49,7 +49,7 @@ logic note_done;
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
 		note_cnt <= 0;
-	else if (note_cnt == curr_note_dur)
+	else if (note_cnt >= curr_note_dur)
 		note_cnt <= 0;
 	else if (!note_done)
 		note_cnt <= note_cnt + note_dur_inc;
@@ -60,7 +60,7 @@ end
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
 		note_done <= 0;
-	else if (note_cnt == curr_note_dur) begin
+	else if (note_cnt >= curr_note_dur) begin
 		note_done <= 1;
 	end else note_done <= 0;
 end
