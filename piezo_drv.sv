@@ -117,7 +117,8 @@ always_comb begin
 			curr_note_dur = note_dur;
 			curr_half_period = E7_HALF;
 			if (note_done) begin
-				if (batt_low_run) nxt_state = N1;
+				if (batt_low_run && batt_low) nxt_state = N1;
+				else if (batt_low_run) nxt_state = IDLE; // batt_low ended during note, go back to IDLE after note finishes
 				else nxt_state = N4;
 			end
 		end
@@ -149,7 +150,7 @@ always_ff @(posedge clk, negedge rst_n) begin
 	else if (freq_done)
 		piezo_out <= ~piezo_out;
 	else
-		piezo_out <= piezo_out;
+		piezo_out <= piezo_out;	
 end
 
 assign piezo = (state == IDLE) ? 1'b0 : piezo_out;
