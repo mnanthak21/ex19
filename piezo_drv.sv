@@ -22,10 +22,10 @@ endgenerate
 
 logic batt_low_run;
 logic [24:0] curr_note_dur;
-logic [12:0] curr_freq;
+logic [24:0] curr_freq;
 
 // note frequency counter
-logic [12:0] freq_cnt;
+logic [24:0] freq_cnt;
 logic freq_done;
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
@@ -39,7 +39,7 @@ end
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
 		freq_done <= 0;
-	else if (freq_cnt == (clk_speed / curr_freq)) freq_done <= 1;
+	else if (freq_cnt == (clk_speed / (2*curr_freq))) freq_done <= 1;
 	else freq_done <= 0;
 end
 
@@ -48,6 +48,8 @@ logic [24:0] note_cnt;
 logic note_done;
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
+		note_cnt <= 0;
+	else if (note_cnt == curr_note_dur)
 		note_cnt <= 0;
 	else if (!note_done)
 		note_cnt <= note_cnt + note_dur_inc;
@@ -60,7 +62,6 @@ always_ff @(posedge clk, negedge rst_n) begin
 		note_done <= 0;
 	else if (note_cnt == curr_note_dur) begin
 		note_done <= 1;
-		note_cnt <= 0;
 	end else note_done <= 0;
 end
 
