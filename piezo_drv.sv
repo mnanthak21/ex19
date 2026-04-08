@@ -37,7 +37,7 @@ end
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
 		freq_done <= 0;
-	else if (freq_cnt == curr_freq) freq_done <= 1;
+	else if (freq_cnt == (clk_speed / curr_freq)) freq_done <= 1;
 	else freq_done <= 0;
 end
 
