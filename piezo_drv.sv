@@ -12,6 +12,14 @@ parameter FAST_SIM = 0;
 localparam note_dur = 8388608;
 logic [4:0] note_dur_inc;
 
+// note frequencies in Hz
+localparam G6_HALF = 50000000 / (2 * 1568);  // ~15943
+localparam C7_HALF = 50000000 / (2 * 2093);  // ~11944
+localparam E7_HALF = 50000000 / (2 * 2637);  //  ~9482
+localparam G7_HALF = 50000000 / (2 * 3136);  //  ~7972
+
+logic [14:0] curr_half_period;
+
 
 generate if (FAST_SIM) begin
 		assign note_dur_inc = 16;
@@ -22,7 +30,7 @@ endgenerate
 
 logic batt_low_run;
 logic [24:0] curr_note_dur;
-logic [24:0] curr_freq;
+
 
 // note frequency counter
 logic [24:0] freq_cnt;
@@ -30,7 +38,7 @@ logic freq_done;
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
 		freq_cnt <= 0;
-	else if (freq_done)
+	else if (state == IDLE || freq_done)
 		freq_cnt <= 0;
 	else
 		freq_cnt <= freq_cnt + 1;
@@ -39,7 +47,7 @@ end
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
 		freq_done <= 0;
-	else if (freq_cnt == (clk_speed / (2*curr_freq))) freq_done <= 1;
+	else if (freq_cnt >= curr_half_period) freq_done <= 1;
 	else freq_done <= 0;
 end
 
@@ -83,7 +91,7 @@ end
 
 // FSM comb logic
 always_comb begin
-	curr_freq = 0;
+	curr_half_period = 0;
 	curr_note_dur = 0;
 	nxt_state = state;
 	
@@ -97,17 +105,17 @@ always_comb begin
 		end
 		N1: begin
 			curr_note_dur = note_dur;
-			curr_freq = 1568;
+			curr_half_period = G6_HALF;
 			if (note_done) nxt_state = N2;
 		end
 		N2: begin
 			curr_note_dur = note_dur;
-			curr_freq = 2093;
+			curr_half_period = C7_HALF;
 			if (note_done) nxt_state = N3;
 		end
 		N3: begin
 			curr_note_dur = note_dur;
-			curr_freq = 2637;
+			curr_half_period = E7_HALF;
 			if (note_done) begin
 				if (batt_low_run) nxt_state = N1;
 				else nxt_state = N4;
@@ -115,21 +123,36 @@ always_comb begin
 		end
 		N4: begin
 			curr_note_dur = note_dur + note_dur / 2;
-			curr_freq = 3136;
+			curr_half_period = G7_HALF;
 			if (note_done) nxt_state = N5;
 		end
 		N5: begin
 			curr_note_dur = note_dur / 2;
-			curr_freq = 2637;
+			curr_half_period = E7_HALF;
 			if (note_done) nxt_state = N6;
 		end
 		N6: begin
 			curr_note_dur = note_dur * 2;
-			curr_freq = 3136;
+			curr_half_period = G7_HALF;
 			if (note_done) nxt_state = IDLE;
 		end
 		default: nxt_state = IDLE;
 	endcase
 end
+
+logic piezo_out;
+always_ff @(posedge clk, negedge rst_n) begin
+	if (!rst_n)
+		piezo_out <= 0;
+	else if (state == IDLE)
+		piezo_out <= 0;
+	else if (freq_done)
+		piezo_out <= ~piezo_out;
+	else
+		piezo_out <= piezo_out;
+end
+
+assign piezo = (state == IDLE) ? 1'b0 : piezo_out;
+assign piezo_n = (state == IDLE) ? 1'b0 : ~piezo_out;
 
 endmodule
