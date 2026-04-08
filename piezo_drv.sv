@@ -6,33 +6,39 @@ output logic piezo, piezo_logic;
 typedef enum logic [2:0] {IDLE, N1, N2, N3, N4, N5, N6} state_t;
 state_t state, nxt_state;
 
-logic clk_speed = 50'000'000;
+localparam clk_speed = 50'000'000;
 parameter FAST_SIM = 0;
 
-logic note_dur;
+localparam note_dur = 8388608;
+logic [4:0] note_dur_inc;
 generate if (FAST_SIM) begin
-	note_dur = 524288;
-end else begin
-	note_dur = 8388608;
-end
+		assign note_dur_inc = 16;
+	end else begin
+		assign note_dur_inc = 1;
+	end
+endgenerate
+
+logic batt_low_run;
+logic curr_note_dur;
+logic curr_note_freq;
 
 // note frequency counter
-logic note_cnt;
-logic note_done;
+logic freq_cnt;
+logic freq_done;
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
-		note_cnt <= 0;
-	else if (!note_done)
-		note_cnt <= note_cnt + 1;
+		freq_cnt <= 0;
+	else if ((state == IDLE) || freq_done)
+		freq_cnt <= 0;
 	else
-		note_cnt <= note_cnt;
+		freq_cnt <= freq_cnt + 1;
 end
 
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
-		note_done <= 0;
-	else if (note_cnt == curr_note_dur) note_done <= 1;
-	else note_done <= 0;
+		freq_done <= 0;
+	else if (freq_cnt == curr_freq) freq_done <= 1;
+	else freq_done <= 0;
 end
 
 // note duration counter
@@ -42,7 +48,7 @@ always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
 		note_cnt <= 0;
 	else if (!note_done)
-		note_cnt <= note_cnt + 1;
+		note_cnt <= note_cnt + note_dur_inc;
 	else
 		note_cnt <= note_cnt;
 end
@@ -63,8 +69,6 @@ always_ff @(posedge clk, negedge rst_n) begin
 end
 
 // FSM comb logic
-logic batt_low_run;
-logic curr_note_dur;
 always_comb begin
 	batt_low_run = 0;
 	curr_note_dur = 0;
@@ -82,14 +86,17 @@ always_comb begin
 		end
 		N1: begin
 			curr_note_dur = note_dur;
+			curr_freq <= 1568;
 			if (note_done) nxt_state = N2;
 		end
 		N2: begin
 			curr_note_dur = note_dur;
+			curr_freq <= 2093;
 			if (note_done) nxt_state = N3;
 		end
 		N3: begin
 			curr_note_dur = note_dur;
+			curr_freq <= 2637;
 			if (note_done) begin
 				if (batt_low_run) nxt_state = N1;
 				else nxt_state = N4;
@@ -97,14 +104,17 @@ always_comb begin
 		end
 		N4: begin
 			curr_note_dur = note_dur + note_dur / 2;
+			curr_freq <= 3136;
 			if (note_done) nxt_state = N5;
 		end
 		N5: begin
 			curr_note_dur = note_dur / 2;
+			curr_freq <= 2637;
 			if (note_done) nxt_state = N6;
 		end
 		N6: begin
 			curr_note_dur = note_dur * 2;
+			curr_freq <= 3136;
 			if (note_done) nxt_state = IDLE;
 		end
 		default: note_nxt_state = IDLE;
