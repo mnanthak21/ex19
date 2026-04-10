@@ -10,6 +10,9 @@ localparam clk_speed = 50000000;
 parameter FAST_SIM = 0;
 
 localparam note_dur = 8388608;
+localparam note_dur2 = 12582912;
+localparam note_dur3 = 4194304;
+localparam note_dur4 = 16777216;
 logic [4:0] note_dur_inc;
 
 // note frequencies in Hz
@@ -123,17 +126,17 @@ always_comb begin
 			end
 		end
 		N4: begin
-			curr_note_dur = note_dur + note_dur / 2;
+			curr_note_dur = note_dur2;
 			curr_half_period = G7_HALF;
 			if (note_done) nxt_state = N5;
 		end
 		N5: begin
-			curr_note_dur = note_dur / 2;
+			curr_note_dur = note_dur3;
 			curr_half_period = E7_HALF;
 			if (note_done) nxt_state = N6;
 		end
 		N6: begin
-			curr_note_dur = note_dur * 2;
+			curr_note_dur = note_dur4;
 			curr_half_period = G7_HALF;
 			if (note_done) nxt_state = IDLE;
 		end
