@@ -1,90 +1,44 @@
-module piezo_drv(clk, rst_n, batt_low, fanfare, piezo, piezo_n);
+module maze_solve(clk, rst_n, cmd_md, cmd0, lft_opn, rght_opn, mv_cmplt, sol_cmplt, strt_hdng, dsrd_hdng, strt_mv, stp_lft, stp_rght);
 
-input logic clk, rst_n, batt_low, fanfare;
-output logic piezo, piezo_n;
+input logic clk, rst_n;
+input logic cmd_md, cmd0;
+input logic lft_opn, rght_opn;
+input logic mv_cmplt, sol_cmplt;
+output logic strt_hdng; 
+output logic [11:0] dsrd_hdng;
+output logic strt_mv;
+output logic stp_lft, stp_rght;
 
-typedef enum logic [2:0] {IDLE, N1, N2, N3, N4, N5, N6} state_t;
+//localparam clk_speed = 50000000;
+
+// direction values
+localparam hdng_north = 12'h000;
+localparam hdng_west = 12'h3FF;
+localparam hdng_south = 12'h7FF;
+localparam hdng_east = 12'hC00;
+
+logic lft_affn;
+logic sensor1_opn;
+logic sensor2_opn;
+logic [11:0] current_hdg;
+
+
+logic current_turning;
+
+// if cmd[0] is high system is left affinty otherwise right affinity
+assign lft_affn = cmd0;
+assign current_hdg = hdng_north;
+
+// sensor 1 and sesor 2 are based on if it is left or right affinity
+assign sensor1_opn = (lft_affn) ? lft_opn : rght_opn;
+assign sensor2_opn = (lft_affn) ? rght_opn : lft_opn;
+
+
+// state declaraions
+typedef enum logic [3:0] {IDLE, MV_FRWD, DONE, TURN_S1, TURN_S2, TURN_180} state_t;
 state_t state, nxt_state;
 
-localparam clk_speed = 50000000;
-parameter FAST_SIM = 0;
-
-localparam note_dur = 8388608;
-localparam note_dur2 = 12582912;
-localparam note_dur3 = 4194304;
-localparam note_dur4 = 16777216;
-logic [4:0] note_dur_inc;
-
-// note frequencies in Hz
-localparam G6_HALF = 50000000 / (2 * 1568);  // ~15943
-localparam C7_HALF = 50000000 / (2 * 2093);  // ~11944
-localparam E7_HALF = 50000000 / (2 * 2637);  //  ~9482
-localparam G7_HALF = 50000000 / (2 * 3136);  //  ~7972
-
-logic [14:0] curr_half_period;
-
-
-generate if (FAST_SIM) begin
-		assign note_dur_inc = 16;
-	end else begin
-		assign note_dur_inc = 1;
-	end
-endgenerate
-
-logic batt_low_run;
-logic [24:0] curr_note_dur;
-
-
-// note frequency counter
-logic [24:0] freq_cnt;
-logic freq_done;
-always_ff @(posedge clk, negedge rst_n) begin
-	if (!rst_n)
-		freq_cnt <= 0;
-	else if (state == IDLE || freq_done)
-		freq_cnt <= 0;
-	else
-		freq_cnt <= freq_cnt + 1;
-end
-
-always_ff @(posedge clk, negedge rst_n) begin
-	if (!rst_n)
-		freq_done <= 0;
-	else if (freq_cnt >= curr_half_period) freq_done <= 1;
-	else freq_done <= 0;
-end
-
-// note duration counter
-logic [24:0] note_cnt;
-logic note_done;
-always_ff @(posedge clk, negedge rst_n) begin
-	if (!rst_n)
-		note_cnt <= 0;
-	else if (note_cnt >= curr_note_dur)
-		note_cnt <= 0;
-	else if (!note_done)
-		note_cnt <= note_cnt + note_dur_inc;
-	else
-		note_cnt <= note_cnt;
-end
-
-always_ff @(posedge clk, negedge rst_n) begin
-	if (!rst_n)
-		note_done <= 0;
-	else if (note_cnt >= curr_note_dur) begin
-		note_done <= 1;
-	end else note_done <= 0;
-end
-
-// batt_low_run FF
-always_ff @(posedge clk, negedge rst_n) begin
-	if (!rst_n)
-		batt_low_run <= 0;
-	else if (state == IDLE)
-		batt_low_run <= batt_low;
-end
-
-// FSM update
+// state machine flip flop
 always_ff @(posedge clk, negedge rst_n) begin
 	if (!rst_n)
 		state <= IDLE;
@@ -92,71 +46,100 @@ always_ff @(posedge clk, negedge rst_n) begin
 		state <= nxt_state;
 end
 
-// FSM comb logic
+// state machine logic
 always_comb begin
-	curr_half_period = 0;
-	curr_note_dur = 0;
-	nxt_state = state;
-	
+	// default outputs
+    strt_hdng = 0;
 	case (state)
-		IDLE: begin
-			if (batt_low) begin
-				nxt_state = N1;
-			end else if (fanfare) begin
-				nxt_state = N1;
-			end
-		end
-		N1: begin
-			curr_note_dur = note_dur;
-			curr_half_period = G6_HALF;
-			if (note_done) nxt_state = N2;
-		end
-		N2: begin
-			curr_note_dur = note_dur;
-			curr_half_period = C7_HALF;
-			if (note_done) nxt_state = N3;
-		end
-		N3: begin
-			curr_note_dur = note_dur;
-			curr_half_period = E7_HALF;
-			if (note_done) begin
-				if (batt_low_run && batt_low) nxt_state = N1;
-				else if (batt_low_run) nxt_state = IDLE; // batt_low ended during note, go back to IDLE after note finishes
-				else nxt_state = N4;
-			end
-		end
-		N4: begin
-			curr_note_dur = note_dur2;
-			curr_half_period = G7_HALF;
-			if (note_done) nxt_state = N5;
-		end
-		N5: begin
-			curr_note_dur = note_dur3;
-			curr_half_period = E7_HALF;
-			if (note_done) nxt_state = N6;
-		end
-		N6: begin
-			curr_note_dur = note_dur4;
-			curr_half_period = G7_HALF;
-			if (note_done) nxt_state = IDLE;
-		end
-		default: nxt_state = IDLE;
+        IDLE: begin
+            if ((!cmd_md) && (mv_cmplt || !lft_opn || !rght_opn))begin
+                nxt_state = MV_FRWD;
+            end
+        end
+
+        MV_FRWD: begin
+            if (sol_cmplt) begin
+                nxt_state = DONE;
+            end
+            else if ((!sol_cmplt) && (sensor1_opn)) begin
+                
+                strt_hdng = 1;
+                nxt_state = TURN_S1;
+            end
+            else if ((!sol_cmplt) && (!sensor1_opn) && (sensor2_opn)) begin
+                strt_hdng = 1;
+                nxt_state = TURN_S2;
+            end
+            else if ((!sol_cmplt) && (!sensor1_opn) && (!sensor2_opn)) begin
+                // strt_hdng = 1;
+                nxt_state = TURN_180;
+            end
+            else nxt_state = MV_FRWD;
+            
+        end
+
+        TURN_S1: begin 
+        
+            if (lft_affn) begin 
+                if (dsrd_hdng == hdng_north) current_hdg = hdng_west;
+                if (dsrd_hdng == hdng_west) current_hdg = hdng_south;
+                if (dsrd_hdng == hdng_south) current_hdg = hdng_east;
+                if (dsrd_hdng == hdng_east) current_hdg = hdng_north;
+            end
+            else if (!lft_affn) begin
+                if (dsrd_hdng == hdng_north) current_hdg = hdng_east;
+                if (dsrd_hdng == hdng_east) current_hdg = hdng_south;
+                if (dsrd_hdng == hdng_south) current_hdg = hdng_west;
+                if (dsrd_hdng == hdng_west) current_hdg = hdng_north;
+            end
+            
+        end
+
+        TURN_S2: begin
+            if (lft_affn) begin 
+                if (dsrd_hdng == hdng_north) current_hdg = hdng_east;
+                if (dsrd_hdng == hdng_east) current_hdg = hdng_south;
+                if (dsrd_hdng == hdng_south) current_hdg = hdng_west;
+                if (dsrd_hdng == hdng_west) current_hdg = hdng_north; 
+            end
+            else if (!lft_affn) begin
+                if (dsrd_hdng == hdng_north) current_hdg = hdng_west;
+                if (dsrd_hdng == hdng_west) current_hdg = hdng_south;
+                if (dsrd_hdng == hdng_south) current_hdg = hdng_east;
+                if (dsrd_hdng == hdng_east) current_hdg = hdng_north;   
+            end
+
+        end
+
+
+        TURN_180: begin
+            if (dsrd_hdng == hdng_north) current_hdg = hdng_south;
+            if (dsrd_hdng == hdng_south) current_hdg = hdng_north;
+            if (dsrd_hdng == hdng_west) current_hdg = hdng_east;
+            if (dsrd_hdng == hdng_east) current_hdg = hdng_west; 
+        end
+
+
+        DONE: nxt_state = DONE;
+		
+
+
+
+
+        default: nxt_state = IDLE;
 	endcase
 end
 
-logic piezo_out;
+
+
+// updates dsrd_hdng with current_hdg based on FSM outputs
 always_ff @(posedge clk, negedge rst_n) begin
-	if (!rst_n)
-		piezo_out <= 0;
-	else if (state == IDLE)
-		piezo_out <= 0;
-	else if (freq_done)
-		piezo_out <= ~piezo_out;
-	else
-		piezo_out <= piezo_out;	
+	if (!rst_n) dsrd_hdng = hdng_north;
+	else if (strt_hdng == 1) dsrd_hdng = current_hdg;
+	else dsrd_hdng = dsrd_hdng;
 end
 
-assign piezo = (state == IDLE) ? 1'b0 : piezo_out;
-assign piezo_n = (state == IDLE) ? 1'b0 : ~piezo_out;
+
+
 
 endmodule
